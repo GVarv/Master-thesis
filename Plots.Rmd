@@ -1,0 +1,358 @@
+---
+title: "Plots"
+author: "Giulia Varvara"
+date: "23/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#load(file="Probabilities.RData")
+#load(file="Plots.RData")
+```
+
+
+```{r Sampling probabiliy density plots, fig.width=15,fig.height=15}
+par(mfrow=c(6,3))
+for(i in ncol(p.time500):2){
+  plot(density(p.time500[,i]), main = paste0("Sampling probability density ",colnames(p.time500)[i]), xlab = "Probability", col="red",lwd=5) # plots the results 
+
+}
+```
+
+
+Scale probabilities. does it make sense?
+```{r}
+p.non_scaled=p.time500
+
+```
+
+
+
+As we can see we have estimates for the sampling probability from the second time unit onwards.
+How do we combine these 17 probabilities for the 18 time interval? (Maybe present the issue to the group?)
+
+For the moment we can multiply from MN17 to PreMN and decide what to do with the remaining time interval later
+
+```{r Boxplots of adjusted origination fraction,fig.width=15,fig.height=10}
+time.or.frac=time.or.fraction[,-1]
+time.prob=p.time500[,-1]
+time.adj.frac=time.or.frac*(1/time.prob)
+#time.adj.frac[,2:ncol(time.adj.frac)]=as.numeric(time.adj.frac[,2:ncol(time.adj.frac)])
+time.adj.frac=as.data.frame(cbind(LIDNUM=rownames(time.adj.frac),time.adj.frac))
+names=rownames(time.adj.frac)
+time.adj.frac[,2:ncol(time.adj.frac)]=sapply(time.adj.frac[2:ncol(time.adj.frac)], as.numeric)
+rownames(time.adj.frac)=names
+#typeof(time.adj.frac[,i])
+#par(mfrow=c(5,4))
+#for(i in ncol(time.adj.frac):1){
+ # boxplot(time.adj.frac[,i], main = paste0("Adjusted probability density ",colnames(time.adj.frac)[i]), col="dodgerblue",lwd=5) # plots the results 
+#}
+boxplot(time.adj.frac[,2:ncol(time.adj.frac)], ylim=c(0,1000)) 
+```
+
+ 
+## Species factories  
+
+```{r Create plots}
+#par(mfrow=c(5,4))
+library(rnaturalearth)
+library(ggplot2)
+library(sf)
+library(gridExtra)
+pp=c()
+for(i in 2:ncol(time.adj.frac)){
+  time.adj.frac[,i]=as.numeric(time.adj.frac[,i])
+  #class(time.adj.frac[,i])
+  tr=as.numeric(quantile(time.adj.frac[,i], 0.95))
+  #cat("\nThreshold=",tr,"\n")
+  idx=which(time.adj.frac[,i]>tr)
+  cat("\n\nAbnormal locations= ", length(idx))
+  
+  adj.frac=time.adj.frac[idx,]
+  bb=data[which(data$LIDNUM %in% rownames(adj.frac)),]
+  bb=bb[!duplicated(bb$LIDNUM),]
+  bb=bb[,c("LIDNUM","NAME","LAT","LONG")]
+  adj.frac=merge(adj.frac,bb,by= "LIDNUM")
+  
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+#Europe <- world[which(world$continent == "Europe"),]
+  pp[[i-1]]=ggplot(world) +
+    geom_sf() +
+    geom_point(data = adj.frac, mapping = aes(x = LONG, y = LAT), colour = "red",show.legend=FALSE) + 
+    coord_sf(xlim = c(-25,45), ylim = c(35,70), expand = FALSE)+
+    ggtitle(paste0(colnames(adj.frac)[i]))+
+    
+    theme_bw()+
+    theme(plot.title = element_text(size = 20, face = "bold",hjust = 0.5),
+      panel.background = element_rect(fill = "lightblue",
+                                    colour = "lightblue",
+                                    size = 0.5, linetype = "solid")
+    )
+  
+}
+```
+
+```{r Plot species factories,fig.width=20,fig.height=10}
+library(gridExtra)
+#library(cowplot)
+library(ggpubr)
+library(purrr)
+ggarrange(plotlist = pp,nrow = 3,ncol=3)
+```
+
+Another possibility is to identify as abnormally high the fractions that are considered outliers in the boxplot
+```{r Count outliers from boxplots}
+id.out=c()
+count=c()
+for(i in 2:ncol(time.adj.frac)){
+  print(paste0(colnames(adj.frac)[i]))
+  out=boxplot.stats(time.adj.frac[,i])$out
+  cat("Outliers from boxplot = ",length(out),"\n\n")
+  id.out[[i-1]]=which(time.adj.frac[,i] %in% c(out))
+  count=c(count, length(out))
+  
+}
+```
+
+```{r Histogram of number of outliers from boxplots}
+quantile(count)
+hist(count, breaks=25)
+```
+
+We can see that in many MN units we have way many more species factories than if we use the quantile way of defining abnormally high fractions.
+Would it make sense to mark as species factor that many locations?
+
+```{r Add coordinates and Name to dataset of probabilities}
+bb=data[which(data$LIDNUM %in% time.adj.frac$LIDNUM),]
+bb=bb[!duplicated(bb$LIDNUM),]
+bb=bb[,c("LIDNUM","NAME","LAT","LONG")]
+adj.frac.coord=merge(time.adj.frac,bb,by= "LIDNUM")
+```
+
+
+```{r Create plots with species factories and all locations,fig.width=15, fig.height=10}
+#par(mfrow=c(5,4))
+p=c()
+for(i in 2:(ncol(adj.frac.coord)-3)){
+  adj.frac.coord[,i]=as.numeric(adj.frac.coord[,i])
+  #class(time.adj.frac[,i])
+  tr=as.numeric(quantile(adj.frac.coord[,i], 0.95))
+  #cat("\nThreshold=",tr,"\n")
+  idx=which(adj.frac.coord[,i]>tr)
+  cat("\n\nAbnormal locations= ", length(idx))
+  
+  adj.frac=adj.frac.coord[idx,]
+  lids=adj.frac.coord[idx,c("LIDNUM","NAME")]
+  #bb=data[which(data$LIDNUM %in% rownames(adj.frac)),]
+  #bb=bb[!duplicated(bb$LIDNUM),]
+  #bb=bb[,c("LIDNUM","NAME","LAT","LONG")]
+  #adj.frac=merge(adj.frac,bb,by= "LIDNUM")
+  
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+#Europe <- world[which(world$continent == "Europe"),]
+  p[[i-1]]=ggplot(world) +
+    geom_sf() +
+    geom_point(data = adj.frac.coord, mapping = aes(x = LONG, y = LAT), colour = "green",show.legend=FALSE) +
+    geom_point(data = adj.frac, mapping = aes(x = LONG, y = LAT), colour = "red",show.legend=FALSE) + 
+    coord_sf(xlim = c(-25,45), ylim = c(35,70), expand = FALSE)+
+    ggtitle(paste0(colnames(adj.frac)[i]))+
+    
+    theme_bw()+
+    theme(plot.title = element_text(size = 20, face = "bold",hjust = 0.5),
+      panel.background = element_rect(fill = "lightblue",
+                                    colour = "lightblue",
+                                    size = 0.5, linetype = "solid")
+    )
+  #print(p[[i-1]])
+  
+}
+```
+
+```{r Plots species factories and locations,fig.width=20,fig.height=10}
+ggarrange(plotlist = p,nrow = 3,ncol=3)
+```
+
+
+## Characteristics of species factories:   
+We want to see if being a species factory is related to some characteristics, like how many findings in general are there in the location. Are species factories the ones that have a higher number of total findings, a lower or is there no relationship at all with that?
+
+
+`tot.findings` in the no.indet500 list refers to the number of different species in the whole MN units, while the numbers in time.sp refers to the total number of findings(so the same species might appear multiple times in a same time) so we can check if being a species factories is related both to the total number of findings(including multiple findings of the same species) or to the total diversity (number of different species). we can consider the diversity both including as different also the indet. or sp. taxons or including only the ones that have been identified at species level also(in that case we shouldn't be using`tot.findings`, but counting the rows in the dataset since the total findings include also the species that have not been identified at species level)
+
+
+```{r Species density plots, fig.width=15,fig.height=15}
+par(mfrow=c(6,3))
+for(i in ncol(time.sp):1){
+  plot(density(time.sp[,i]), main = paste0("Species density ",colnames(time.or.frac)[i]), xlab = "Number of species", col="violet",lwd=5) # plots the results 
+}
+```
+
+
+Subset for the localities that have been identified as species factories and see what type of boxplot are we going to obtain and if the number are much higher or lower or whatever.  
+```{r Densities species factories total findings, fig.height=10}
+par(mfrow=c(6,3))
+nfind.sp.fac=c()
+for(i in 2:(ncol(adj.frac.coord)-3)){
+  adj.frac.coord[,i]=as.numeric(adj.frac.coord[,i])
+  #class(time.adj.frac[,i])
+  tr=as.numeric(quantile(adj.frac.coord[,i], 0.95))
+  #cat("\nThreshold=",tr,"\n")
+  idx=which(adj.frac.coord[,i]>tr)
+  #cat("\n\nAbnormal locations= ", length(idx))
+  ab.loc=adj.frac.coord[idx,c(1,i)]
+  loc=time.sp[rownames(time.sp) %in% ab.loc$LIDNUM,colnames(time.sp) %in% colnames(ab.loc)[2]]
+  nfind.sp.fac[[i-1]]=loc
+  
+  plot(density(unlist(loc)), main = paste0("Species density species factories ",colnames(ab.loc)[2]), xlab = "Number of species", col="purple",lwd=5) # plots the results 
+}
+names(nfind.sp.fac)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
+```
+
+
+```{r Boxplot species factories total findings, fig.width=15}
+par(mfrow=c(1,2))
+boxplot(nfind.sp.fac,col="dodgerblue", main="Species factories")
+boxplot(time.sp, col="light blue", main="Total locations") 
+mtext("Total findings", side = 1, outer = TRUE,line=-2, cex=2)
+```
+From these two plots we can see that the the boxplots for the total number of species in all the locations are actually much wider than the ones for the species factories.  
+This probably indicates that the species factories tends to have lower numbers of total species.  
+
+  
+We could now check if it is related to the number of different species using the rows of  the no.indet500 list.  
+In this list we have a dataset of all the 
+```{r Number of different species in the locations}
+tot.sp=c()
+for(i in 1:length(no.indet500)){
+  ds=no.indet500[[i]]$data
+  occ=colSums(ds[,2:(ncol(ds)-1)] != 0)
+  tot.sp=rbind(tot.sp,occ)
+}
+rownames(tot.sp)=names(no.indet500)
+```
+
+
+```{r Boxplot species factories different species, fig.width=15}
+par(mfrow=c(6,3))
+tot.sp.fac=c()
+sp.fac_names=c()
+for(i in 2:(ncol(adj.frac.coord)-3)){
+  adj.frac.coord[,i]=as.numeric(adj.frac.coord[,i])
+  #class(time.adj.frac[,i])
+  tr=as.numeric(quantile(adj.frac.coord[,i], 0.95))
+  #cat("\nThreshold=",tr,"\n")
+  idx=which(adj.frac.coord[,i]>tr)
+  SF.names=adj.frac.coord[idx,"LIDNUM"]
+  #cat("\n\nAbnormal locations= ", length(idx))
+  ab.loc=adj.frac.coord[idx,c(1,i)]
+  loc=tot.sp[rownames(tot.sp) %in% ab.loc$LIDNUM,colnames(tot.sp) %in% colnames(ab.loc)[2]]
+  tot.sp.fac[[i-1]]=loc
+  sp.fac_names[[i-1]]=SF.names
+  
+  plot(density(unlist(loc)), main = paste0("different species density species factories ",colnames(ab.loc)[2]), xlab = "Number of species", col="purple",lwd=5) # plots the results 
+}
+names(tot.sp.fac)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
+names(sp.fac_names)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
+```
+
+```{r Boxplot species factories different species, fig.width=15}
+par(mfrow=c(1,2))
+boxplot(tot.sp.fac,col="dodgerblue", main="Species factories")
+boxplot(tot.sp, col="light blue", main="Total locations") 
+mtext("Different species", side = 1, outer = TRUE,line=-2, cex=2)
+```
+
+Also when considering only the number of species and not of findings, the locations identified as specie factories seem to be the one with values in the first quartiles. 
+This points to the fact that species factories are actually the ones with the lowest number of species, which might sound counter intuitive.  
+
+What we can also check if being identified as a species factory is somehow related to the fraction of different species over the total number of findings.  
+```{r Different species over total findings}
+frac.dife=tot.sp/time.sp
+frac.dife[is.na(frac.dife)] <- 0
+```
+
+```{r Different species over total findings, fig.width=15}
+par(mfrow=c(6,3))
+frac.sp.fac=c()
+for(i in 2:(ncol(adj.frac.coord)-3)){
+  adj.frac.coord[,i]=as.numeric(adj.frac.coord[,i])
+  #class(time.adj.frac[,i])
+  tr=as.numeric(quantile(adj.frac.coord[,i], 0.95))
+  #cat("\nThreshold=",tr,"\n")
+  idx=which(adj.frac.coord[,i]>tr)
+  #cat("\n\nAbnormal locations= ", length(idx))
+  ab.loc=adj.frac.coord[idx,c(1,i)]
+  loc=frac.dife[rownames(frac.dife) %in% ab.loc$LIDNUM,colnames(frac.dife) %in% colnames(ab.loc)[2]]
+  frac.sp.fac[[i-1]]=loc
+  
+  plot(density(unlist(loc)), main = paste0("different species density species factories ",colnames(ab.loc)[2]), xlab = "Number of species", col="purple",lwd=5) # plots the results 
+}
+names(frac.sp.fac)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
+```
+
+```{r Boxplot species factories different species/total findings, fig.width=15}
+par(mfrow=c(1,2))
+boxplot(frac.sp.fac,col="dodgerblue", main="Species factories")
+boxplot(frac.dife, col="light blue", main="Total locations") 
+mtext("Different species/total findings", side = 1, outer = TRUE,line=-2, cex=2)
+```
+
+
+Here we see a completely different trend since the species factories tend to be in the higher fractions than the total localities and in some time unit being made only by the higher outliers of the boxplots and their values are usually in the last quantiles.
+
+```{r Summarising boxplots}
+cat("Species factories total findings")
+print(mean(nfind.sp.fac))
+
+cat("Species factories difference factories")
+print(mean(tot.sp.fac))
+
+cat("Species factories difference factories/total findings")
+print(mean(frac.sp.fac))
+```
+
+
+
+```{r, fig.height=10, fig.width=15}
+library(rnaturalearth)
+library(ggplot2)
+library(sf)
+library(gridExtra)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+ggplot(world) +
+    geom_sf() +
+    geom_point(data = europe, mapping = aes(x = LONG, y = LAT), colour = "dodgerblue",show.legend=FALSE) +
+    #geom_point(data = adj.frac_rand, mapping = aes(x = LONG, y = LAT), colour = "red",show.legend=FALSE) + 
+    coord_sf(xlim = c(-25,45), ylim = c(35,70), expand = FALSE)+
+    ggtitle("Location NOW database")+
+    
+    theme_bw()+
+    theme(plot.title = element_text(size = 20, face = "bold",hjust = 0.5),
+      panel.background = element_rect(fill = "lightblue",
+                                    colour = "lightblue",
+                                    size = 0.5, linetype = "solid")
+    )
+```
+
+
+```{r}
+save.image("Plots.RData")
+```
+
+```{r}
+total.find_med=unlist(lapply(nfind.sp.fac, median))
+total.find_med
+different.sp_med=unlist(lapply(tot.sp.fac, median))
+different.sp_med
+frac_med=unlist(lapply(frac.sp.fac, median))
+frac_med
+medians_sp.fac=rbind(total.find_med, different.sp_med,frac_med)
+medians_sp.fac
+saveRDS(medians_sp.fac, file = "medians_SpFac.rds")
+```
+
