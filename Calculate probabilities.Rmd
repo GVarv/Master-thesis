@@ -1,0 +1,254 @@
+---
+title: "Probabilities calculation"
+author: "Giulia Varvara"
+date: "23/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+load(file="Preprocessing.RData")
+```
+
+Since every location has basically just one fossil occurrence, we should sort of group them in some way.
+What we did was to define a radius and consider ll the finings in that radius from a focal point as belonging to the location used as focal point.  
+  
+Here we are using as radius 500km, as it was in the work of Jaakko.  
+
+```{r For each focal point find locations in that radius(500km)}
+radius=500
+candidate.loc500=list()
+for(loc in 1:nrow(distanza)){
+  cand.loc=c()
+  for(j in 1:ncol(distanza)){
+    if(distanza[loc,j]<radius)
+      cand.loc=c(cand.loc,colnames(distanza)[j])
+  }
+  candidate.loc500[[loc]]=cand.loc
+}
+names(candidate.loc500)=rownames(distanza)
+```
+
+For each focal point we need to create a list that takes all the entries that have LIDNUM = to one of the ones in the list of possible locations:
+```{r Subset according to close locations(500km)}
+cand.entr500=c()
+for(i in 1:length(candidate.loc500)){
+  cand.entr500[[i]]=europe[europe$LIDNUM %in% as.numeric(candidate.loc500[[i]]),] 
+}
+names(cand.entr500)=names(candidate.loc500)
+```
+
+Now that we have a list of the entries for close localities for each focal point we should see which species we can find in the combined places and when, performing CMR on each locality list for each species(Look if there is a method to obtain just speciation and extinction rate using CMR for everything and not species by species).
+
+
+For each "group-location" in the list create a dataset in that has the species in the row and the MN units in the column to store which species has been fond in which time here (later, we should look for the first appearance of each species worldwide and see if we have first appearances here->Does this mean that we have to do CMR worldwide?).  
+Also, create a "Capture history" for each species that we'll later use for the CMR analysis.  
+Since we are interested in the origination probability, to do CMR we need the reverse capture history, which estimates turnover and encounter probabilities instead of extinction and encounter ones.  
+If later we will want to estimate extinction probability we can just reverse the string.  
+
+
+
+```{r Species in 500km from focal point}
+library(dplyr)
+species.occ500=c()
+for(j in 1:length(cand.entr500)){
+  occ= cand.entr500[[j]] %>% group_by(Genus_Species) %>% summarize(MN = paste(sort(TIMEUNIT),collapse=", "))
+  occ$MN=strsplit(occ$MN, split = ", ")
+  
+  occ.time=c()
+  out=c()
+  for(i in 1:nrow(occ)){
+    res <- table(factor(lab, levels=lab)[match(unlist(occ$MN[i]), lab, nomatch=0)])
+  
+    y<-(res>0)*1 #Transform non empty column into 1s (expect name column)
+    #y=rev(y) #Put in order from more ancient to more recent
+    out[i]=paste(y,sep="",collapse = "") #Create a string of 0 for non appearances and 1 for appearances in a given time unit
+    
+    occ.time=rbind(occ.time,cbind(occ$Genus_Species[i],t(res),out[i]))
+  }
+  colnames(occ.time)[1]="Species"
+  colnames(occ.time)[20]="ch"
+  species.occ500[[j]]=occ.time
+}
+names(species.occ500)=names(cand.entr500)
+```
+
+Now we have a list of appearances according to species and time unit.  
+We should check when was the first appearance worldwide for each species and mark possible first appearances.
+If a species has not appeared somewhere else in the world before the first time it was recorded in our database then perform CMR to estimate sampling and origination probability.
+  
+Now, for each species in species list for each focal point radius, check if that species is a first occurrence, but to do so we have to first identify the properly identified species, removing the indet. or sp. from the dataframe
+
+
+```{r Create datasets with no indet for 500km list}
+no.indet500=c()
+for(j in 1:length(species.occ500)){
+  ds=as.data.frame(species.occ500[[j]])
+  n=nrow(ds)
+  if(length(which(grepl("( indet.)|( sp.)",ds[,"Species"])))>=1){
+    ds=ds[-which(grepl("( indet.)|( sp.)",ds[,"Species"])),]
+  }
+  no.indet500[[j]]=list(data=ds,tot.findings=n)
+}
+names(no.indet500)=names(species.occ500)
+```
+
+
+
+```{r Create list of new species for 500km list}
+new.sp500=c()
+for(j in 1:length(no.indet500)){
+  ds=as.data.frame(no.indet500[[j]]$data)
+  dim(ds)
+  nc=which(!grepl("MN",colnames(ds)))
+  #if(length(which(str_detect(ds[,1], "(indet)|(sp)")))>=1){
+   # ds=ds[-which(str_detect(ds[,1], "(indet)|(sp)")),]
+  #}
+  #if(is.null(dim(ds))==T & length(ds)!=0){
+    #ds=t(as.data.frame(ds))
+  #}
+  dim(ds)
+  if(nrow(ds)>=1){
+    origin=c()
+    for(i in 1:nrow(ds)){
+      sp=first_occ_no_indet[which(first_occ_no_indet$Genus_Species==ds[i,"Species"]),]
+      min.time=min(which(ds[i,-nc] != 0))#Find earlier time which has more than 0 occurrences
+      origin[i]=(sp$Origination.time==lab[min.time])
+      if(sp$Origination.time>lab[min.time]){ 
+        stop("ERROR: First occurrence is later than the earliest occurrence in this dataset")
+      }
+     #time=ds[which(origin==T),max(which(ds[i,-1] != 0))]
+    }
+    if(length(which(origin==T))<=1){
+      new.species=ds[which(origin==T),]
+      orig.time=lab[which.min(new.species[,-nc] !=0)]
+    }
+    if(length(which(origin==T))>1){
+      new.species=ds[which(origin==T),]
+      orig.time=lab[apply(new.species[,-nc] != 0, 1, which.min)]#Species originated in this location group
+    }
+    new.species=cbind(new.species,orig.time )
+    new.sp500[[j]]=new.species
+  } 
+  #if(nrow(ds)==1){
+    
+   #} 
+  
+if(nrow(ds)<1){
+    print(paste0("No species that is not indet or sp in location radius ",names(species.occ500)[j]))
+    new.sp500[[j]]=paste0("No species that is not indet or sp in location radius ",names(species.occ500)[j])
+    }
+#Now we have to find out the origination time for each  
+}
+names(new.sp500)=names(no.indet500)
+
+time.or_new=c()
+for(i in 1:length(new.sp500)){
+  tv=table(new.sp500[[i]]["orig.time"])
+  time.or_new=rbind(time.or_new,tv[match(lab, names(tv))])
+}
+colnames(time.or_new)=lab
+rownames(time.or_new)=names(no.indet500)
+time.or_new[is.na(time.or_new)] <- 0
+```
+  
+  
+
+We can compute a table of the origination time for each locations to obtain the different origination fraction at that time per location.
+```{r Calculate new species per time period per location(500km)}
+time.or=c()
+for(i in 1:length(new.sp500)){
+  tv=table(new.sp500[[i]]["orig.time"])
+  time.or=rbind(time.or,tv[match(lab, names(tv))])
+}
+colnames(time.or)=lab
+rownames(time.or)=names(no.indet500)
+time.or[is.na(time.or)] <- 0
+```
+
+
+
+For some reason the columns of the species occurrence list are character type so we first have to change that. For the rest the code is pretty much the same as when counting new species
+
+```{r Calculate findings per time period per location(500km)}
+time.sp=c()
+for(i in 1:length(species.occ500)){
+  ds=as.data.frame(species.occ500[[i]])
+  ds[, 2:(ncol(ds)-1)] <- sapply(ds[, 2:(ncol(ds)-1)], as.numeric)
+  tv=colSums(ds[, 2:(ncol(ds)-1)])
+  time.sp=rbind(time.sp,tv[match(lab, names(tv))])
+}
+colnames(time.sp)=lab
+rownames(time.sp)=names(species.occ500)
+time.sp[is.na(time.sp)] <- 0
+```
+
+From these two matrices we can calculate the origination fraction per location per time period, dividing the matrix of new species for the matrix of total findings.
+We'll encounter times in which the location has no new finding but also no findings at all so that would create a NaN in the dataset. Substitute that with 0.
+```{r}
+time.or.fraction=time.or/time.sp
+time.or.fraction[is.nan(time.or.fraction)] <- 0
+```
+
+Now we can calculate the sampling and origination probability using a time-varying model.
+Since we ar focusing only on the sampling probability we don't really care about the order of the time unit, which would be important otherwise because estimating $\gamma$ (which is the senior probability = Probability that an individual alive at i was alive at i − 1) is equivalent to estimate $\phi$ (Probability that individual alive at time i is still alive at time i +1) when reversing the order of the observation, which is useful since a great deal of research has been conducted on  the sensitivity of $\phi$ to the violation of model assumptions.
+
+```{r}
+save.image("Pre_probabilities count.RData")
+saveRDS(no.indet500, file = "no_indet500.rds")
+saveRDS(new.sp500, file = "new_sp500.rds")
+```
+
+
+```{r Calculate time-varying probabilities with only "RMark" for 500km}
+load("Pre_probabilities count.RData")
+#install.packages("RMark")
+library(RMark)
+rm("%notin%")
+
+p.time500=c()
+Phi.dot=list(formula=~1)
+p.dot=list(formula=~1)
+Phi.time=list(formula=~time)
+p.time=list(formula=~time)
+
+for(j in 1:length(no.indet500)){
+  ds=as.data.frame(no.indet500[[j]]$data[,c("Species","ch")])
+  ds.process=process.data(ds,model="CJS")
+  ds.ddl=make.design.data(ds.process)
+  typeof(ds)
+  dim(ds)
+  if(nrow(ds)>0){ 
+    mod=mod=mark(ds.process,ds.ddl,model.parameters=list(Phi=Phi.dot,p=p.time),output = FALSE)
+    phi=as.numeric(mod$results$real$estimate[1])
+    p=as.numeric(mod$results$real$estimate[-1])
+
+    p.time500=rbind(p.time500,c(phi,p))
+    cat("Estimate of phi =",phi, "\nEstimate of p = ",p)
+    mod=c()
+    #names(p.time500)[j]=names(no.indet500)[j]
+    } else {
+      cat("Empty dataset for location ",names(no.indet100)[j])
+    }
+  cleanup(lx = NULL,ask=FALSE, prefix = "mark")
+}
+rownames(p.time500)=names(no.indet500)
+#colnames(p.time500)=c("Phi","p17","p16","p15","p14","p13","p12","p11","p10","p9","p7-8","p6","p5","p4","p3","p2","p1","pPre")
+saveRDS(p.time500, file = "p_time500.rds")
+```
+
+
+```{r}
+ #which(!identical(new.sp500[["21390"]],new.sp500_old[["21390"]]))
+```
+
+
+
+
+```{r}
+saveRDS(p.time500, file = "p_time500.rds")
+save.image(file="Probabilities.RData")
+```
