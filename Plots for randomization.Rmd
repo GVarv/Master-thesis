@@ -1,0 +1,182 @@
+---
+title: "Plots"
+author: "Giulia Varvara"
+date: '2022-07-07'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+load("Rand_med.RData")
+load("Plots.RData")
+#medians_sp.fac=load("medians_SpFac.rds")
+```
+
+```{r}
+cleanup(lx = NULL,ask=FALSE, prefix = "mark")
+```
+```{r}
+total.find_med=unlist(lapply(nfind.sp.fac, median))
+total.find_med
+different.sp_med=unlist(lapply(tot.sp.fac, median))
+different.sp_med
+frac_med=unlist(lapply(frac.sp.fac, median))
+frac_med
+medians_sp.fac=rbind(total.find_med, different.sp_med,frac_med)
+medians_sp.fac
+saveRDS(medians_sp.fac, file = "medians_SpFac.rds")
+```
+
+```{r Densities of medians for different species, fig.height=15, fig.width=15}
+colnames(med_diff.sp)=colnames(med_frac)
+par(mfrow=c(5,4), mar=c(1,1,7,1))
+for (i in 1:ncol(med_diff.sp)){
+  mn=colnames(med_diff.sp)[i]
+  plot(density(med_diff.sp[,mn]), main = paste0(mn), xlim=c(0,100),xlab="X", ylab="Density")
+  abline(v = medians_sp.fac["different.sp_med" ,mn], col="red")
+  legend("topright", legend=c("Original pecies factories median"), col="red", lwd=1)
+}
+mtext("Density of medians for number of different species in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+```
+```{r Densities of medians for total findings, fig.height=15, fig.width=15}
+
+par(mfrow=c(5,4), mar=c(1,1,7,1))
+for (i in 1:ncol(med_tot.sp)){
+  mn=colnames(med_diff.sp)[i]
+  plot(density(med_tot.sp[,mn]), main = paste0(mn),xlab="X", ylab="Density")
+  abline(v = medians_sp.fac["total.find_med" ,mn], col="red")
+  legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
+}
+mtext("Density of medians for total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+```
+```{r Densities of medians fordifferent species/total fidings, fig.height=15, fig.width=20}
+
+par(mfrow=c(5,4), mar=c(1,1,7,1))
+for (i in 1:ncol(med_frac)){
+  mn=colnames(med_frac)[i]
+  plot(density(med_frac[,mn]), main = paste0(mn), xlim=c(0.5,1),xlab="X", ylab="Density")
+  abline(v = medians_sp.fac["frac_med" ,mn], col="red")
+  legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
+}
+mtext("Density of medians for number of different species/total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+```
+
+For each calculate how much of the density there is before the value coming from the original species factories.
+
+```{r}
+inv_ecdf <- function(f){
+       x <- environment(f)$x
+       y <- environment(f)$y
+       approxfun(y, x)
+}
+
+```
+
+
+```{r Cumluative distribution of total findings, fig.height=15, fig.width=20}
+par(mfrow=c(5,4), mar=c(4,1,7,1))
+ecdf_total.sp=c()
+for (i in 1:ncol(med_tot.sp)){
+  mn=colnames(med_tot.sp)[i]
+  
+  f <- ecdf(med_tot.sp[,mn])
+  my_ecdf <- f(med_tot.sp[,mn])
+  data_ecdf <- data.frame(med_tot.sp[,mn], my_ecdf)    # Combine x & eCDF values
+  if(nrow(data_ecdf[data_ecdf$med_tot.sp...mn.<=medians_sp.fac["total.find_med" ,mn],])==0){
+    gg=0
+  }else{
+    gg=max(data_ecdf[data_ecdf$med_tot.sp...mn.<=medians_sp.fac["total.find_med" ,mn],"my_ecdf"])
+  }
+  cat("\nECDF of ",mn,gg,"\n\n")
+
+  plot(ecdf(med_diff.sp[,mn]),xlab = paste0("ECDF original species factories=",gg),ylab = "Distribution of x",main=paste0(mn), xlim=c(0,150))
+  abline(v = medians_sp.fac["total.find_med" ,mn], col="red")
+  legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
+  
+  ecdf_total.sp[[i]]=cat("\nECDF of ",mn,gg,"\n\n")
+  #my.ecdf <- fun.ecdf(sort(med_frac[,mn]))
+}
+mtext("Cumulative density of total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+```
+
+```{r Cumluative distribution of different findings, fig.height=15, fig.width=20}
+par(mfrow=c(5,4), mar=c(4,1,7,1))
+for (i in 1:ncol(med_diff.sp)){
+  mn=colnames(med_diff.sp)[i]
+  
+  f <- ecdf(med_diff.sp[,mn])
+  my_ecdf <- f(med_diff.sp[,mn])
+  data_ecdf <- data.frame(med_diff.sp[,mn], my_ecdf)    # Combine x & eCDF values
+  if(nrow(data_ecdf[data_ecdf$med_diff.sp...mn.<=medians_sp.fac["different.sp_med" ,mn],])==0){
+    gg=0
+  }else{
+    gg=max(data_ecdf[data_ecdf$med_diff.sp...mn.<=medians_sp.fac["different.sp_med" ,mn],"my_ecdf"])
+  }
+  
+  cat("\nECDF of ",mn,gg,"\n\n")
+  ecdf_different.sp=cat("\nECDF of ",mn,gg,"\n\n")
+  
+  plot(ecdf(med_diff.sp[,mn]),xlab =paste0("ECDF original species factories=",gg),ylab = "Distribution of x",main=paste0(mn), xlim=c(0,150))
+  abline(v = medians_sp.fac["different.sp_med" ,mn], col="red")
+  legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
+  
+}
+mtext("Cumulative density of different species in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+```
+
+```{r Cumluative distribution of fraction, fig.height=15, fig.width=20}
+par(mfrow=c(5,4), mar=c(4,1,7,1))
+for (i in 1:ncol(med_frac)){
+  mn=colnames(med_frac)[i]
+  
+  f <- ecdf(med_frac[,mn])
+  my_ecdf <- f(med_frac[,mn])
+  data_ecdf <- data.frame(med_frac[,mn], my_ecdf)    # Combine x & eCDF values
+  if(nrow(data_ecdf[data_ecdf$med_frac...mn.<=medians_sp.fac["frac_med" ,mn],])==0){
+    gg=0
+  }else{
+    gg=max(data_ecdf[data_ecdf$med_frac...mn.<=medians_sp.fac["frac_med" ,mn],"my_ecdf"])
+  }
+  cat("\nECDF of ",mn,gg,"\n\n")
+  ecd_fraction=cat("\nECDF of ",mn,gg,"\n\n")
+  
+  plot(ecdf(med_frac[,mn]),xlab = paste0("ECDF original species factories=",gg),ylab = "Distribution of x", xlim=c(0,1), main=paste0(mn))
+  abline(v = medians_sp.fac["frac_med" ,mn], col="red")
+  legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
+  
+}
+mtext("Cumulative density of species/total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+```
+
+
+```{r}
+save.image("Plots for randomized.RData")
+```
+
+
+#Appendix: species factories identified from original data
+```{r}
+#install.packages("xtable")
+library(xtable)
+library(gridExtra)
+name_sp.fac=c()
+for(i in 1:length(sp.fac_names)){
+
+  idx=unlist(sp.fac_names[[i]])
+  temp=unique(data[data$LIDNUM %in% idx, c("NAME","LIDNUM")])
+  rownames(temp)=NULL
+  lid=temp$LIDNUM
+  temp=data.frame(Name=temp[,-2])
+  rownames(temp)=lid
+  name_sp.fac[[i]]=temp
+  names(name_sp.fac)[i]=names(sp.fac_names)[i]
+  print.xtable(xtable(name_sp.fac[[i]]), file = paste0("Sp.fac_",names(sp.fac_names)[i],".txt"))
+  #grid.table(name_sp.fac[[i]])
+}
+```
+
+
+
