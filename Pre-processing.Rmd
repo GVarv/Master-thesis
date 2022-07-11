@@ -1,0 +1,194 @@
+---
+title: "Pre processing"
+author: "Giulia Varvara"
+date: "18/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Read data}
+data.orig=read.csv("/home/varvagiu/Desktop/Analysis/NOW.csv", sep="\t", header=T)
+dim(data.orig)
+head(data.orig)
+```
+
+# Problematic locations:  
+
+Find missing values "\\N" for time and coordinates:
+
+Find and remove problematic coordinates ("\\N"). For time, in the original dataset they are 0 so we can put 0 where there is "\\N".  
+```{r Find poblematic locations}
+prob=subset(data.orig,grepl('\\N', LONG) | grepl('\\N',LAT) )
+prob
+idx=prob$LIDNUM
+# Creating a not in operator:
+`%notin%` <- Negate(`%in%`)
+
+#remove problematic locations and save it in a different dataset
+data=data.orig[data.orig$LIDNUM %notin% idx, ]
+
+#For problematic locations regarding time set time to 0 instead
+data$MIN_AGE[which(data$MIN_AGE == "\\N")] = 0
+```
+
+# Assign MN units:  
+
+Divide in MN time units taking middle point between minimum and maximum age for each locality, and see which MN unit to assign all locality to time unit.
+Also remove entries where MAX_AGE-MIN_AGE>2.5
+
+```{r Assign MN time units}
+data$MIN_AGE=as.double(data$MIN_AGE)
+#Make a copy of the data
+data.backup=data
+
+#Keep entries with difference smaller than 2.5
+data=data[abs(data$MAX_AGE-data$MIN_AGE)<=2.5,]
+data$MP=(data$MAX_AGE+data$MIN_AGE)/2
+#lab=factor(c("Pre MN","MN1","MN2","MN3","MN4","MN5","MN6","MN7-8","MN9","MN10","MN11","MN12","MN13","MN14","MN15","MN16","MN17","Post MN"), ordered = TRUE)
+#lab=c("Post MN","MN17","MN16","MN15","MN14","MN13","MN12","MN11","MN10","MN9","MN7-8","MN6","MN5","MN4","MN3","MN2","MN1","Pre MN")
+#lab=rev(lab)
+lab=c("Pre MN","MN1","MN2","MN3","MN4","MN5","MN6","MN7-8","MN9","MN10","MN11","MN12","MN13","MN14","MN15","MN16","MN17","Post MN")
+lab=ordered(lab, levels=lab)
+br=c(Inf,23,21.70,19.50,17.20,16.40,14.20,12.85,11.20,9.90,8.90,7.60,7.10,5.30,5,3.55,2.50,1.9,0)
+br=rev(br)
+#br=ordered(c(0.00,1.90,2.50,3.55,5.00,5.30,7.10,7.60,8.90,9.90,11.20,12.85,14.20,16.40,17.20,19.50,21.70,23.00,Inf))
+#data$TIMEUNIT=cut(data$MP, breaks = c(Inf,23,21.70,19.50,17.20,16.40,14.20,12.85,11.20,9.90,8.90,7.60,7.10,5.30,5,3.55,2.50,1.9,0),labels = lab, ordered_result = TRUE)
+data$TIMEUNIT=cut(data$MP, breaks =br,labels = lab, ordered_result = TRUE)
+
+
+#data$TIMEUNIT=factor(data$TIMEUNIT, levels = rev(levels(data$TIMEUNIT)))
+table(data$TIMEUNIT)
+```
+
+Genus and species together make unique species so create a variable that put genus and species together.
+```{r Create unique species name}
+data$Genus_Species=paste(data$GENUS,data$SPECIES,sep=" ")
+length(unique(data$Genus_Species))
+
+#rearrange column order to see the most important stuff first
+data=data[,c(1:6, 89:90, 7:88)]
+```
+
+# Focus on Europe:  
+
+We should focus on Europe for our analysis so let's reduce the data at the localities that are in Europe:
+```{r Focus on Europe}
+data$LAT=as.numeric(data$LAT)
+data$LONG=as.numeric(data$LONG)
+europe=data[(data$LAT>35 & data$LONG>-25 &data$LONG<40),]
+dim(europe)
+#data.reduced=europe[,c("LIDNUM","NAME","LAT","LONG","LATSTR","LONGSTR","TIMEUNIT","Genus_Species")]
+```
+
+
+# Unique locations:  
+create a matrix that contains only the unique locations (LIDNUM):
+```{r Find duplicate locations in Europe}
+locations.lid=europe[!duplicated(europe$LIDNUM),]
+#locations.name=europe[!duplicated(europe$NAME),]
+```
+
+Lets' find the problematic locations in Europe:
+```{r Remove duplicate locations}
+prob.idx=which(table(locations.lid$NAME)>1)
+prob.names=names(prob.idx)
+prob.data=locations.lid[locations.lid$NAME %in% prob.names,]
+print(prob.data)
+prob.data=prob.data[order(prob.data$LIDNUM),]
+lid.new=europe[europe$LIDNUM==prob.data$LIDNUM[2],]
+lid.old=europe[europe$LIDNUM==prob.data$LIDNUM[1],]
+print(lid.old)
+print(lid.new)
+```
+Since the number of LIDNUM and the age are inversely related (the youngest locations will have the higher LIDNUM), we are going to keep only the location with the lowest LIDNUM. 
+
+# Cooridnates and distances:  
+```{r Create matrix of coordinates}
+coord=as.data.frame(locations.lid[,c("LIDNUM","NAME","LAT","LONG","TIMEUNIT")])
+```
+
+
+Calculate distance between locations using geodist to find the km from LAT and LONG (Distances from geodist are in meters).
+```{r Matrix of distances between locations}
+install.packages("geodist")
+library(geodist)
+names=coord$LIDNUM
+distanza=geodist(coord[,c("LAT","LONG")],measure = "geodesic")/1000
+prob.na=distanza[which(is.na(distanza))]
+rownames(distanza)=names
+colnames(distanza)=names
+#which(is.na(distanza), arr.ind=TRUE)
+```
+
+# First occurrences  
+
+To see if a species has a first occurrence in the location we first have to see when said species has been found first and we should do that taking into account the entire world since the species could have originated somewhere else and then moved to Europe.  
+
+```{r First Occurrence}
+install.packages("dplyr")
+library(dplyr)
+#Create dataset that store the time of first occurrence per each genus_species in the whole world, storing time and location of first occurence for each species.
+                    
+first_occurrence2=data %>% group_by(Genus_Species) %>% summarize(Origination.time = paste(unique(TIMEUNIT),collapse = ","))
+
+first_occurrence=data %>% group_by(Genus_Species) %>% summarize(Origination.time = paste(min(unique(TIMEUNIT)),collapse=", "),Location=paste(NAME[which.min(unique(TIMEUNIT))]))
+
+#first_occurrence=data %>% group_by(Genus_Species) %>% summarize(Origination.time = paste(max(unique(TIMEUNIT)),collapse=", "),Location=paste(NAME[which.max(unique(TIMEUNIT))]))
+#Checking if all counts with removing indet are fine.
+dim(first_occurrence)
+```
+
+# Different type of missing values:
+
+"Indet." means undetermined: a piece have been found but they can't tell exactly what it is so they stop at some higher level.
+Missing value for identification, database use conservative policy so if 2 giraffes found, one identified to species level and one to family level assumption is that second one is the same as the first one. If "indet" recorded, they are unique and part of the community, represent species from the rest, something on its own anyway. 
+Problem with species factor is that we want to track same species, measure origination rate, when it originates and how it spreads. Withing time unit that can be many canis indet but it doesn't mean that from locality to locality it means same species.
+"indet" may be different species.
+Often eliminate this type of indet but completely eliminate not completely correct because origination rate= ratio of new species over total species at that place and time slot, so eliminating indet denominator would be reduced.
+"incertae sedis" people don't know, so they have all information but don't know  ancestry of tat specie.
+"gen." at genus level and "sp." as species level usually used when it has been identified as unique species but not named officially. so if you find family+sp it may or may not be the same.  
+
+Problem: How to deal with "indet" and "sp"?  
+Our best option for the moment is to do not consider these entries as one species (the same genus+indet combination could refer to very different species) and so we can remove them when counting the first appearances but we should probably do not remove them from the denominator, which is composed by all the fossils found at that location.  
+```{r Build a matrix of first occurrences without indet. and sp.}
+#Checking if all counts with removing indet are fine.
+library(stringr)
+first_occ_no_indet=first_occurrence[-which(str_detect(first_occurrence$Genus_Species, "( indet.)|( sp.)")),]                                              
+dim(first_occ_no_indet)           
+```
+
+```{r}
+table(first_occ_no_indet$Origination.time)
+#table(first_occ_no_indet)
+```
+
+```{r Count how many occurrences in how many locations, fig.width=10, fig.height=5}
+library(ggplot2)
+dd=data.frame(table(sort(table(europe$LIDNUM))))
+#d=density(table(europe$LIDNUM))
+plot(x=dd$Var1,y=dd$Freq,lty=2, col="dodgerblue",xlab="Number of findings in the location", ylab = "Frequency",main="Number of findings per location")
+
+```
+```{r}
+radius=500
+candidate.loc500=list()
+for(loc in 1:nrow(distanza)){
+  cand.loc=c()
+  for(j in 1:ncol(distanza)){
+    if(distanza[loc,j]<radius)
+      cand.loc=c(cand.loc,colnames(distanza)[j])
+  }
+  candidate.loc500[[loc]]=cand.loc
+}
+names(candidate.loc500)=rownames(distanza)
+```
+
+
+
+```{r}
+save.image(file="Preprocessing.RData")
+```
+

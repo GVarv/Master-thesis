@@ -1,0 +1,261 @@
+---
+title: "Compare diameters"
+author: "Giulia Varvara"
+date: "20/04/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load pre-processed data:  
+
+```{r Load pre processed data}
+load(file="Preprocessing.RData")
+```
+
+## Subset to only ID, Species and time unit: 
+
+```{r Create matrix with only information needed for building the network}
+europe$level=europe$TIMEUNIT
+levels(europe$level)=as.numeric(1:length(levels(europe$TIMEUNIT)))
+europe=europe[-which(grepl("( indet.)|( sp.)",europe[,"Genus_Species"])),]
+#europe.reduced=europe[,c("LIDNUM","Genus_Species","level")]
+if(length(which(grepl("( indet.)|( sp.)",europe[,"Genus_Species"])))!=0){
+  europe=europe[-which(grepl("( indet.)|( sp.)",europe[,"Genus_Species"])),]
+}
+```
+
+
+```{r}
+source("Network_prep.R")
+source("Clustering.R")
+```
+
+
+We build the networks for different radius
+```{r Create network files}
+library(hexbin)
+library(splancs)
+library(geoscale)
+library(alphahull)
+library(igraph)
+library(topicmodels)
+net=c()
+i=1
+s=sort(c(seq(50,1000,80),500,1000))
+for(diam in s){
+  net[[i]]=network_prep(europe,diam = diam)
+  i=i+1
+}
+name=paste0("net",s)
+names(net)=name
+```
+
+Use the file that have been created to make the network in `https://www.mapequation.org/infomap/` using the setting `--clu --tree -s 1-n 50` (the seed and number of repetitions are important to ensure that when we re-run the same analysis with the same file we get the same results).
+Then we cluster the so obtained network at the chosen level. For the moment `level_3`seems to be th best since has few NAs but it is still quite specific (the only level without NAs is the first one but it is too generic).
+
+
+`-s 1 -N 50 multilayer --multilayer-relax-rate 0.25 -f undirected --tree --multilayer-relax-limit 1 --ftree`   Add number to intra
+
+```{r Cluster networks}
+net.clu=c()
+i=1
+for(diam in s){
+  unique.eu=net[[i]][["unique.eu"]]
+  net.clu[[i]]=clustering(unique.eu ,diam = diam)
+  i=i+1
+}
+name=paste0("clus",s)
+names(net.clu)=name
+```
+
+```{r}
+library(rnaturalearth)
+library(ggplot2)
+library(sf)
+library(gridExtra)
+gg=c()
+for(i in 1:length(net.clu)){
+  # pattern is by finding a set of numbers in the start and capturing them
+  diam=as.numeric(gsub("[[:alpha:]]", "",  names(net.clu)[i]))
+
+
+  sub.sub.eu=net.clu[[i]]$sub.eu
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+  #Europe <- world[which(world$continent == "Europe"),]
+    gg[[i]]=ggplot(world) +
+      geom_sf() +
+      geom_point(data = sub.sub.eu, mapping = aes(x = LONG, y = LAT,colour=factor(Level_3)),size=2.5) +
+    #geom_point(data = adj.frac, mapping = aes(x = LONG, y = LAT), colour = "red",show.legend=FALSE) + 
+      coord_sf(xlim = c(-25,45), ylim = c(35,70), expand = FALSE)+
+      ggtitle(paste0("Clustering diam ", diam, "km"))+
+    
+      theme_bw()+
+      theme(plot.title = element_text(size = 20, face = "bold",hjust = 0.5),
+          panel.background = element_rect(fill = "lightblue",
+                                          colour = "lightblue",
+                                          size = 0.5, linetype = "solid")
+    )
+
+}
+```
+
+```{r Plot clusters,fig.width=20,fig.height=10}
+library(gridExtra)
+#library(cowplot)
+library(ggpubr)
+library(purrr)
+#pp=sapply(net.clu, i="map", function(x,i) x[i])
+ggarrange(plotlist = gg,nrow = 2,ncol=2)
+```
+Now we want to create a table that has the "location" in the rows and the level_3 cluster ID for the different radius.
+```{r Create a locationXcluster ID table}
+clustering.ids=net.clu[[1]][["cluster.ID"]]
+for(i in 2:length(net.clu)){
+  clustering.ids=cbind(clustering.ids,net.clu[[i]][["cluster.ID"]][,2])
+}
+#clustering.ids=as.matrix(clustering.ids)
+name=c("LIDNUM",paste0("diam",s))
+colnames(clustering.ids)=name
+```
+
+Now that we have a data frame with all the cluster IDs for level 3 for each location with the different hexagon radius, we need to find which diversity measure we are going to use in order to measure which clustering radius would be better.  
+
+First we want to see how many cluster there are for each radius at level 3, then we can take the cluster ID for the shortest radius as reference and see how far from that is the cluster ID for different radius.
+We can also check how many NAs there are for that radius and maybe repeat the process for lower levels.
+
+```{r Count number of cluster per diameter}
+clust.num=apply(clustering.ids,2,function(x) {length(unique(x))})
+clust.num
+plot(clust.num[2:length(clust.num)], type="b", col="orange",lwd=5,ylab="Number of clusters",xlab="Diameter",xaxt="n")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+```
+We can see that the number of cluster is not monotonically decreasing.  
+
+Now, let's take the radius of 50k as a reference
+```{r Difference in cluster ID assignment between different diameters and diam 50km}
+clustering.ids=mutate_all(clustering.ids, function(x) as.numeric(as.character(x)))
+comparison=cbind(clustering.ids[,"LIDNUM"],apply(clustering.ids[,-1],2, function(x){abs(clustering.ids[,"diam50"]-x)}))
+mean.comp=apply(comparison[,-1],2,function(x){mean(x,na.rm = T)})
+
+plot(mean.comp[2:length(mean.comp)], type="b", col="Forest green",lwd=5,ylab="Difference",xlab="Diameter",xaxt="n",main="Cluster ID difference (50km radius as reference)")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+
+plot(as.integer(mean.comp[2:length(mean.comp)]), type="b", col="Forest green",lwd=5,ylab="Difference",xlab="Diameter",xaxt="n",main="Cluster ID difference (50km radius as reference)")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+
+```
+Count number of NAs
+```{r Count number of NAs}
+num.na=apply(clustering.ids[,-1],2,function(x){length(which(is.na(x)))})
+plot(num.na[2:length(mean.comp)], type="b", col="Forest green",lwd=5,ylab="Difference",xlab="Diameter",xaxt="n")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+plot(num.na[2:length(mean.comp)], type="b", col="Forest green",lwd=5,ylab="Difference",xlab="Diameter",xaxt="n",ylim=c(0,130))
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+
+plot(num.na[2:length(mean.comp)], type="b", col="Forest green",lwd=5,ylab="Difference",xlab="Diameter",xaxt="n",ylim=c(0,15),yaxt="n")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+axis(side=2, at=num.na)
+```
+From the first plot we can see that after 610km the amount of NAs for level 3 are too many.
+In the second plot we zoom on smaller number of NAs and we can see they are pretty uniform (just 1 or 2 as a difference, as can be seen by the third plot).  
+
+450km of radius has the lowest number of NAs and the lowest difference in clusters from the 50km radius ones, but it also has less cluster than 500km, which still has a very low number of NAs and of difference from the reference clustering.
+So maybe 500km radius is a good enough choice.
+
+
+
+
+1.b.
+
+Count number of NAs per partition per level
+```{r}
+NA_levels=c()
+num.clu=c()
+for(i in 1:length(net.clu)){
+  ds=net.clu[[i]][["cluster.ID"]]
+  num_NA=apply(ds[,-1],2,function(x) sum(is.na(x)))
+  NA_levels[[i]]=num_NA
+  num.clu[[i]]=apply(ds[,-1],2,function(x) length(unique(x)))
+}
+names(NA_levels)=names(net.clu)
+names(num.clu)=names(net.clu)
+```
+
+```{r Calculate number of clusters and NA per level}
+NA_levels=c()
+num.clu=c()
+levels=c("Level_1", "Level_12", "Level_123", "Level_1234" )
+for(i in 1:length(net.clu)){
+  ds=net.clu[[i]][["cluster.ID"]]
+  ds$Level_12=paste(ds$Level_1,ds$Level_2,sep="")
+  ds$Level_123=paste(ds$Level_1,ds$Level_2,ds$Level_3,sep="")
+  ds$Level_1234=paste(ds$Level_1,ds$Level_2,ds$Level_3,ds$Level_4,sep="")
+  #which(apply(ds[,-1], 1, function(x)any(grep("NA",x))),arr.ind=TRUE)
+  ds$Level_12[which(grepl("NA",ds$Level_12), arr.ind = TRUE)]=NA
+  ds$Level_123[which(grepl("NA",ds$Level_123), arr.ind = TRUE)]=NA
+  ds$Level_1234[which(grepl("NA",ds$Level_1234), arr.ind = TRUE)]=NA
+  num_NA=apply(ds[,levels],2,function(x) sum(is.na(x)))
+  NA_levels[[i]]=num_NA
+  num.clu[[i]]=apply(ds[,levels],2,function(x) length(unique(x)))
+  net.clu[[i]][["cluster.ID"]]=ds
+}
+names(NA_levels)=names(net.clu)
+names(num.clu)=names(net.clu)
+```
+
+
+```{r}
+thr=5
+clu.rem=matrix(NA,nrow = length(net.clu),ncol=length(levels),dimnames = list(names(net.clu),levels))
+levels=c("Level_1", "Level_12", "Level_123", "Level_1234" )
+for(j in levels){
+  for(i in 1:length(net.clu)){
+    p1=net.clu[[i]]$cluster.ID
+    p1l<-tapply(p1[,"LIDNUM"],p1[,j],list)
+    knots<- unlist(lapply(p1l,function(x)length(x)))
+    sub=which(knots>thr)
+    pp1=as.data.frame(p1[which(p1[,j] %in% names(p1l[sub])),])
+    pp1l=tapply(pp1[,"LIDNUM"],pp1[,j],list)
+    
+    clu.rem[i,j]=length(pp1l)
+  }
+}
+```
+
+
+```{r}
+#ln=unlist(lapply(NA_levels, length))
+#level=names(NA_levels[[i]])[min(unlist(lapply(NA_levels, length)))]
+NAS=c()
+n_clu=c()
+#levels=paste0("Level_",1:min(unlist(lapply(NA_levels, length))))
+for(i in 1:length(NA_levels)){
+  NAS=rbind(NAS,NA_levels[[i]][levels])
+  
+  n_clu=rbind(n_clu,num.clu[[i]][levels])
+}
+rownames(NAS)=names(net.clu)
+rownames(n_clu)=names(net.clu)
+```
+
+```{r, fig.height=10, fig.width=20}
+par(mfrow=c(1,2))
+
+plot(clu.rem[,1],type="b", col=ncol(clu.rem),lwd=2,xaxt="n", main="Number of clusters per level with more than 5 nodes", ylab="Number of clusters", ylim=c(0, max(clu.rem)))
+for(i in (ncol(clu.rem)-1):1){
+  lines(clu.rem[,i],col=i,type="b")
+}
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topleft",col=1:ncol(clu.rem),legend=levels,lty=1)
+
+plot(NAS[,ncol(NAS)],type="b", col=ncol(NAS),lwd=2,xaxt="n", ylim=c(0,20000), main="Number of NAs per level", ylab="Number of NAs")
+for(i in (ncol(NAS)-1):1){
+  lines(NAS[,i],col=i,type="b")
+}
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topleft",col=1:ncol(NAS),legend=levels,lty=1)
+```
+
