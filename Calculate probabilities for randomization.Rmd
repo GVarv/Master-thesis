@@ -40,26 +40,6 @@ p=c()
 p[[1]]=characteristics(find, prob, data)
 ```
 
-```{r, fig.width=15}
-#save.image("Rand_med.RData")
-#load("Rand_med.RData")
-par(mfrow=c(1,2))
-boxplot(p[[1]]$Total_findings_sp.fac,col="dodgerblue", main="Species factories")
-boxplot(p[[1]]$Total_findings_tot, col="light blue", main="Total locations") 
-mtext("Total findings", side = 1, outer = TRUE,line=-2, cex=2)
-
-par(mfrow=c(1,2))
-boxplot(p[[1]]$Different_species_sp.fac,col="dodgerblue", main="Species factories")
-boxplot(p[[1]]$Different_species_tot, col="light blue", main="Total locations") 
-mtext("Different species", side = 1, outer = TRUE,line=-2, cex=2)
-
-
-par(mfrow=c(1,2))
-boxplot(p[[1]]$Fra_sp.fac,col="dodgerblue", main="Species factories")
-boxplot(p[[1]]$Frac_tot, col="light blue", main="Total locations") 
-mtext("Different species", side = 1, outer = TRUE,line=-2, cex=2)
-```
-
 ```{r}
 radius=500
 candidate.loc500=list()
@@ -77,7 +57,7 @@ names(candidate.loc500)=rownames(distanza)
 
 
 ```{r Loop for randomization}
-R=30
+R=100
 #rept=1
 med_tot.sp=matrix(NA,nrow=R,ncol=length(p[[1]]$Total_findings_sp.fac),dimnames = list(c(1:R),unlist(names(p[[1]]$Total_findings_sp.fac))))
 med_diff.sp=matrix(NA,nrow=R,ncol=length(p[[1]]$Different_species_sp.fac),dimnames = list(c(1:R),names(p[[1]]$Different_species_sp.fac)))
@@ -102,31 +82,4 @@ for(rept in 1:R){
   med_frac[rept,]=unlist(lapply(p[[rept]]$Fra_sp.fac, function(x){median(unlist(x))}))
   save.image("Rand_med.RData")
 }
-
-
 ```
-
-
-```{r}
-R=nrow(med_frac)
-for(rept in (R+1):100){
-  rr=randomization(europe)
-  find=findings(rr,candidate.loc500,first_occ_no_indet,lab)
-  prob=probabilities(find$speciesXMN,lab)
-  p[[rept]]=characteristics(find, prob, data)
-  
-  med_tot.sp=rbind(med_tot.sp,unlist(lapply(p[[rept]]$Total_findings_sp.fac, function(x){median(unlist(x))})))
-  med_diff.sp=rbind(med_diff.sp,unlist(lapply(p[[rept]]$Different_species_sp.fac, function(x){median(unlist(x))})))
-  med_frac=rbind(med_frac,unlist(lapply(p[[rept]]$Fra_sp.fac, function(x){median(unlist(x))})))
-  
-  #med_tot.sp[rept,]=unlist(lapply(p[[rept]]$Total_findings_sp.fac, function(x){median(unlist(x))}))
-  #med_diff.sp[rept,]=unlist(lapply(p[[rept]]$Different_species_sp.fac, function(x){median(unlist(x))}))
-  #med_frac[rept,]=unlist(lapply(p[[rept]]$Fra_sp.fac, function(x){median(unlist(x))}))
-  save.image("Rand_med.RData")
-}
-```
-
-
-
-
-
