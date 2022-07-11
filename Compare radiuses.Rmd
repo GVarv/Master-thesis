@@ -258,4 +258,473 @@ for(i in (ncol(NAS)-1):1){
 axis(side=1, at=1:length(s),labels = paste0(s,"km"))
 legend("topleft",col=1:ncol(NAS),legend=levels,lty=1)
 ```
+1.  Remove the small nodes (use a threshold) in the .tree file
 
+```{r Remove cluster with few knots for first 12 layers, fig.width=20}
+level="Level_123"
+net.rem=c()
+for(i in 1:length(net.clu)){
+  ds=net.clu[[i]]$sub.eu
+    ds$Level_12=paste(ds$Level_1,ds$Level_2,sep="")
+    ds$Level_123=paste(ds$Level_1,ds$Level_2,ds$Level_3,sep="")
+    ds$Level_1234=paste(ds$Level_1,ds$Level_2,ds$Level_3,ds$Level_4,sep="")
+    ds$Level_12[which(grepl("NA",ds$Level_12), arr.ind = TRUE)]=NA
+    ds$Level_123[which(grepl("NA",ds$Level_123), arr.ind = TRUE)]=NA
+    ds$Level_1234[which(grepl("NA",ds$Level_1234), arr.ind = TRUE)]=NA
+    #net.clu[[i]]$sub.eu=ds
+     #which.max(table(ds$level))
+    ds.not.max=ds[ds$level<12,]
+     #which.max(table(ds$level))
+  ds.not.max=ds[ds$level<12,]
+  p1=ds.not.max
+  #print(nrow(p1))
+  p1l<-tapply(p1[,"LIDNUM"],p1[,level],list)
+  knots<- unlist(lapply(p1l,function(x)length(x)))
+  knots
+#table(knots)
+  thr=5
+  #knots[knots<thr]
+  sub=which(knots>thr)
+  sort(as.numeric(sub))
+  #name= c(names(p1l[sub]),"NA")
+  name
+  #p.rem=p1l[which(knots>thr)]
+  pp1=as.data.frame(p1[which(p1[,level] %in% names(p1l[sub])),])
+  #nrow(pp1)+length(which(is.na(p1$level_3)))
+  pp1l=tapply(pp1[,"LIDNUM"],pp1[,level],list)
+  #nrow(pp1)+length(which(is.na(p1$level_3)))+nrow(p1[p1$level_3 %in% names(p1l[-sub]),])
+
+  net.rem[[i]] = list(net.clu=pp1,number_clust_clean=length(pp1l), number_clust_original=length(p1l), number_knots_clean=nrow(pp1),non.na_knots_original=nrow(pp1)+nrow(p1[p1[,level] %in% names(p1l[-sub]),]), number_na=length(which(is.na(p1[,level]))))
+  names(net.rem)[i]=names(net.clu)[i]
+}
+
+clus_clean=unlist(lapply(net.rem,function(x) x[["number_clust_clean"]]))
+clus_or=unlist(lapply(net.rem,function(x) x[["number_clust_original"]]))
+s=sort(c(seq(50,1000,80),500,1000))
+par(mfrow=c(1,2))
+plot(clus_clean,col="Red",lwd=2,type="b",ylab="Number of clusters",xlab="Diameter",xaxt="n", main="Number of clusters for earliest layers",ylim=c(0,max(clus_or)))
+lines(clus_or,col="Green",type="b")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topright",col=c("Red","Green"),legend=c("Cleand","Full"),lty=1)
+
+plot(clus_or-clus_clean,col="Orange",lwd=2,type="b",ylab="Difference",xlab="Diameter",xaxt="n",main="Difference in number of clusters for the first layers between original and cleaned")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+#ggplot(aes(y=clus_clean))
+```
+
+``{r Remove cluster with few knots for first 12 layers, fig.width=20}
+level="Level_123"
+net.info=c()
+for(i in 1:length(net.clu)){
+  ds=net.clu[[i]]$sub.eu
+    ds$Level_12=paste(ds$Level_1,ds$Level_2,sep="")
+    ds$Level_123=paste(ds$Level_1,ds$Level_2,ds$Level_3,sep="")
+    ds$Level_1234=paste(ds$Level_1,ds$Level_2,ds$Level_3,ds$Level_4,sep="")
+    ds$Level_12[which(grepl("NA",ds$Level_12), arr.ind = TRUE)]=NA
+    ds$Level_123[which(grepl("NA",ds$Level_123), arr.ind = TRUE)]=NA
+    ds$Level_1234[which(grepl("NA",ds$Level_1234), arr.ind = TRUE)]=NA
+
+  p1=ds
+
+  #print(nrow(p1))
+  p1l<-tapply(p1[,"LIDNUM"],p1[,level],list)
+  knots<- unlist(lapply(p1l,function(x)length(x)))
+  knots
+#table(knots)
+  thr=5
+  #knots[knots<thr]
+  sub=which(knots>thr)
+
+  pp1=as.data.frame(p1[which(p1[,level] %in% names(p1l[sub])),])
+  #nrow(pp1)+length(which(is.na(p1$level_3)))
+  pp1l=tapply(pp1[,"LIDNUM"],pp1[,level],list)
+  #nrow(pp1)+length(which(is.na(p1$level_3)))+nrow(p1[p1$level_3 %in% names(p1l[-sub]),])
+  avg=median(unlist(lapply(pp1l, length))) #Choose median because more robust to outliers
+  
+  net.info[[i]] = list(net.clu=pp1,number_clust_clean=length(pp1l), number_clust_original=length(p1l), number_knots_clean=nrow(pp1),non.na_knots_original=nrow(pp1)+nrow(p1[p1[,level] %in% names(p1l[-sub]),]), number_na=length(which(is.na(p1[,level]))),avg.length_clu=avg)
+  names(net.info)[i]=names(net.clu)[i]
+}
+
+clus_clean=unlist(lapply(net.info,function(x) x[["number_clust_clean"]]))
+clus_or=unlist(lapply(net.info,function(x) x[["number_clust_original"]]))
+avg=unlist(lapply(net.info,function(x) x[["avg.length_clu"]]))
+s=sort(c(seq(50,1000,80),500,1000))
+par(mfrow=c(1,2))
+plot(clus_clean,col="Red",lwd=2,type="b",ylab="Number of clusters",xlab="Diameter",xaxt="n", main="Number of clusters",ylim=c(0,max(clus_or)))
+lines(clus_or,col="Green",type="b")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topright",col=c("Red","Green"),legend=c("Cleand","Full"),lty=1)
+
+plot(avg,col="Dodgerblue",lwd=2,type="b",ylab="Cluster length",xlab="Diameter",xaxt="n",main="Median cluster length")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+```
+
+```{r Remove cluster with few knots for first 12 layers}
+level="Level_123"
+net.rem=c()
+for(i in 1:length(net.clu)){
+  p1=net.clu[[i]]$cluster.ID
+  #print(nrow(p1))
+  p1l<-tapply(p1[,"LIDNUM"],p1[,level],list)
+  knots<- unlist(lapply(p1l,function(x)length(x)))
+  knots
+#table(knots)
+  thr=5
+  #knots[knots<thr]
+  sub=which(knots>thr)
+  sort(as.numeric(sub))
+  #name= c(names(p1l[sub]),"NA")
+  name
+  #p.rem=p1l[which(knots>thr)]
+  pp1=as.data.frame(p1[which(p1[,level] %in% names(p1l[sub])),])
+  #nrow(pp1)+length(which(is.na(p1$level_3)))
+  pp1l=tapply(pp1[,"LIDNUM"],pp1[,level],list)
+  #nrow(pp1)+length(which(is.na(p1$level_3)))+nrow(p1[p1$level_3 %in% names(p1l[-sub]),])
+
+  net.rem[[i]] = list(net.clu=pp1,number_clust_clean=length(pp1l), number_clust_original=length(p1l), number_knots_clean=nrow(pp1),non.na_knots_original=nrow(pp1)+nrow(p1[p1[,level] %in% names(p1l[-sub]),]), number_na=length(which(is.na(p1[,level]))))
+  names(net.rem)[i]=names(net.clu)[i]
+}
+
+clus_clean=unlist(lapply(net.rem,function(x) x[["number_clust_clean"]]))
+clus_or=unlist(lapply(net.rem,function(x) x[["number_clust_original"]]))
+s=sort(c(seq(50,1000,80),500,1000))
+par(mfrow=c(1,2))
+plot(clus_clean,col="Red",lwd=2,type="b",ylab="Number of clusters",xlab="Diameter",xaxt="n", main="Number of clusters",ylim=c(0,max(clus_or)))
+lines(clus_or,col="Green",type="b")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topright",col=c("Red","Green"),legend=c("Cleand","Full"),lty=1)
+
+plot(clus_or-clus_clean,col="Orange",lwd=2,type="b",ylab="Difference",xlab="Diameter",xaxt="n",main="Difference in number of clusters between original and cleaned")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+#ggplot(aes(y=clus_clean))
+```
+
+2.  Write the number of knots
+
+```{r,fig.width=15, fig.height=10}
+clean_knots=unlist(lapply(net.rem,function(x) x[["number_knots_clean"]]))
+original_knots=unlist(lapply(net.rem,function(x) x[["non.na_knots_original"]]))
+num_na=unlist(lapply(net.rem,function(x) x[["number_na"]]))
+
+
+plot(clean_knots,col="Red",lwd=2,type="b",ylab="Number of knots",xlab="Diameter",xaxt="n",main="Number of non NA knots in clusters")
+lines(original_knots,col="Green",type="b")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topright",col=c("Red","Green"),legend=c("Cleand","Full"), lty = 1)
+
+par(mfrow=c(1,2))
+plot(original_knots-clean_knots,col="Dodgerblue",lwd=2,type="b",ylab="Difference in number of knots",xlab="Diameter",xaxt="n",main="Difference in number of knots between full and cleaned clusterings")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+plot(num_na,col="Orange",lwd=2,type="b",ylab="Number of NAs",xlab="Diameter",xaxt="n",main="Number of NAs for partition")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+
+```
+Codelength=Description length in bit (how much bit of info the random walker needs to describe this partition)
+Plot number of level (look at net.tree in clustering.R)->More complexity=more levels, when lose level lose structure
+
+
+3.  Calculate number of : Cluster, grid cells, levels (depth of hierarchy) per solution
+
+```{r Level of hierarchy per partition}
+for(i in 1:length(net.clu)){
+  p1=net.clu[[i]]$cluster.ID
+  levels[i]=length(which(grepl("Level",colnames(p1))))
+}
+names(levels)=names(net.clu)
+plot(levels,col="Blue",lwd=2,type="b",ylab="Number of levels",xlab="Diameter",xaxt="n",main="Number of levels for partition", ylim=c(0,7))
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+```
+```{r}
+#unique.eu$tID identifies the grid cell in space and time so we can use it to count the number of grid cells per partition
+tID=c()
+for(i in 1:length(net)){
+  eu=net[[i]][["unique.eu"]]
+  tID[i]=length(unique(eu$tID))
+}
+names(tID)=names(net)
+plot(tID,col=950,lwd=2,type="b",ylab="Number of grid cells",xlab="Diameter",xaxt="n",main="Number of grid cells for partition")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+```
+
+
+4.  Calculate Jacard similarity
+
+
+To calculate the jacard dissimilarity we first have to remove the Nas ,otherwise the function will not give the right results.
+
+```{r Jacard similarity function}
+#p1=net.clu[[j]]$cluster.ID
+#p2=net.clu[[i]]$cluster.ID
+#level="Level_3"
+
+jacard_similarty <- function(p1,p2, level){ 
+  p1=p1[!is.na(p1[,level]),]
+  p2=p2[!is.na(p2[,level]),]
+	p1l<-tapply(p1[,1],p1[,2],list) #List if clusters and what locations are inside them
+	p2l<-tapply(p2[,1],p2[,2],list) 
+	cp1<-c() 
+	for(i in 1:length(p1l)){ 
+		com <- unlist(lapply(p2l,function(x)sum(unique(x)%in%unique(p1l[[i]])))) #For every cluster in the second list find how many elements in the ith cluster of the first list
+		tot <- unlist(lapply(p2l,function(x)length(unique(c(x,p1l[[i]]))))) #Unique location in the combines group of the "selected" cluster in the second list and the ith cluster in the first one
+		#len <- length(p1l[[i]])/nrow(p1) 
+		len <- length(unique(p1l[[i]]))/length(unique(p1$LIDNUM)) #element in the ith cluster of the first list divided by the total number of unique locations in the dataset
+		cp1[i]<-max(com/tot)*len
+		} 
+	cp2<-c() 
+	for(i in 1:length(p2l)){ 
+		com <- unlist(lapply(p1l,function(x)sum(unique(x)%in%unique(p2l[[i]])))) 
+		tot <- unlist(lapply(p1l,function(x)length(unique(c(x,p2l[[i]]))))) 
+		#len <- length(p2l[[i]])/nrow(p2) 
+		len<- length(unique(p2l[[i]]))/length(unique(p2$LIDNUM))
+		cp2[i]<-max(com/tot)*len 
+		}
+	p1_to_p2 <- sum(cp1) 
+	p2_to_p1 <- sum(cp2) 
+	jacmul <- mean(c(p1_to_p2,p2_to_p1) ) 
+	return(cbind(p1_to_p2=p1_to_p2,p2_tp_p1=p2_to_p1,jacmul=jacmul)) 
+} 
+```
+
+
+```{r Jacard similarity and heatmap, fig.width=7, fig.height=7}
+
+jacard=matrix(NA,nrow = length(net.clu),ncol=length(net.clu),dimnames = list(names(net.clu),names(net.clu)))
+for(i in 1:length(net.clu)){
+  for(j in 1:length(net.clu)){
+    ds_j=net.clu[[j]]$sub.eu[net.clu[[j]]$sub.eu$level %in% 1:11,] #For the other layers do level 4
+    ds_i=net.clu[[i]]$sub.eu[net.clu[[i]]$sub.eu$level %in% 1:11,]
+    #which(ds$level==1)
+    
+    #Remove all NAs
+    ds_j=ds_j[!is.na(ds_j$Level_3),]
+    ds_i=ds_i[!is.na(ds_i$Level_3),]
+    
+    #ds=ds[-which(is.na(ds[,c("Level_1","Level_2","Level_3")])),]
+    ds_j$Level_123=paste(ds_j$Level_1,ds_j$Level_2,ds_j$Level_3, sep="")
+    ds_i$Level_123=paste(ds_i$Level_1,ds_i$Level_2,ds_i$Level_3, sep="")
+    #jac=jacard_similarty(net.clu[[j]]$cluster.ID,net.clu[[i]]$cluster.ID, level = "Level_123" )  #combine level 1, 2 and 3
+    jac=jacard_similarty(ds_j,ds_i, level = "Level_123" )
+    print(jac[,"jacmul"])
+    jacard[i,j]=jac[,"jacmul"]
+    
+    
+  }
+}
+#heatmap(jacard,Rowv=NA,Colv = "Rowv", scale="row")
+heatmap(jacard,Rowv=NA,Colv = "Rowv", scale="none")
+#gplots::heatmap.2(jacard,,Colv=FALSE,dendrogram="none",scale="row")
+```
+```{r}
+save.image(file = "p.rand.RData")
+```
+
+5.  Perplexity
+
+Perplexity is also called number of effective modules. First calculate the Shannon entropy of the partition. Then, perplexity would be 2 ^-(Entropy). 
+From the tree file, create an object with module sizes
+
+```{r Find levels that are present in all the partitions}
+levels=lapply(net.clu, function (x) colnames(x$cluster.ID))
+commonCols <- Reduce(intersect,levels)
+levels=commonCols[which(grepl("Level",commonCols))]
+#levels[which(grepl("( indet.)|( sp.)",levels))]
+```
+
+
+```{r Entropy function}
+
+Perplexity=matrix(NA,nrow = length(net.clu),ncol=length(levels),dimnames = list(names(net.clu),levels))
+
+for(l in levels){
+  level=l
+  for(i in 1:length(net.clu)){
+    modules=data.frame(table(net.clu[[i]]$cluster.ID[,level]))
+
+    m <- nrow(modules)# number of modules
+    n <- sum(modules$Freq)  # number of nodes
+
+    Hx <- NULL
+    for(j in 1:m){
+      nx <- modules$Freq[j]
+      H <- (nx/n)*log2(nx/n)
+      Hx <- rbind(Hx, H)
+    }
+    
+    Entropy <- sum(Hx)
+
+#Then Calculate number of effective modules,
+
+    Perplexity[i,l] <- 2^(-(Entropy))
+  }
+}
+#rownames(Perplexity)=names(net.clu)
+#colnames(Perplexity)=levels
+```
+
+```{r fig.width=10}
+labs=c("Level 1","Level 2","Level 3","Level 4")
+plot(Perplexity[,1],col=1,lwd=2,type="b",ylab="Perplexity",xlab="Diameter",xaxt="n",main="Perplexity", ylim=c(0,max(Perplexity)))
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+for(i in 2:ncol(Perplexity)){
+  lines(Perplexity[,i],col=i, type = "b")
+}
+legend("topleft", col = 1:ncol(Perplexity),legend = labs, lty=1)
+
+par(mfrow=c(1,2))
+plot(Perplexity[,3],col=3,lwd=2,type="b",ylab="Perplexity",xlab="Diameter",xaxt="n",main="Perplexity", ylim=c(0,10))
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+
+plot(clus_clean,col="Red",lwd=2,type="b",ylab="Number of clusters",xlab="Diameter",xaxt="n", main="Number of clusters", ylim=c(0,45))
+lines(clus_or,col="Green",type="b")
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+legend("topright",col=c("Red","Green"),legend=c("Cleand","Full"),lty=1)
+```
+Explore this plot but using only one layer.
+Subset to only first cluster of level 1 and plot again
+
+
+
+
+```{r PErplexity only for layer with most data}
+Perplexity_max.layer=matrix(NA,nrow = length(net.clu),ncol=length(levels),dimnames = list(names(net.clu),levels))
+
+for(l in levels){
+  level=l
+  for(i in 1:length(net.clu)){
+    ds=net.clu[[i]]$sub.eu
+    ds$Level_12=paste(ds$Level_1,ds$Level_2,sep="")
+    ds$Level_123=paste(ds$Level_1,ds$Level_2,ds$Level_3,sep="")
+    ds$Level_1234=paste(ds$Level_1,ds$Level_2,ds$Level_3,ds$Level_4,sep="")
+    ds$Level_12[which(grepl("NA",ds$Level_12), arr.ind = TRUE)]=NA
+    ds$Level_123[which(grepl("NA",ds$Level_123), arr.ind = TRUE)]=NA
+    ds$Level_1234[which(grepl("NA",ds$Level_1234), arr.ind = TRUE)]=NA
+    net.clu[[i]]$sub.eu=ds
+     #which.max(table(ds$level))
+    ds.not.max=ds[ds$level<12,]
+    modules=data.frame(table(ds.not.max[,level]))
+    if(nrow(modules)==0){
+      Perplexity_max.layer[i,l]=0
+    }else{
+      m <- nrow(modules)# number of modules
+    n <- sum(modules$Freq)  # number of nodes
+
+    Hx <- NULL
+    for(j in 1:m){
+      nx <- modules$Freq[j]
+      H <- (nx/n)*log2(nx/n)
+      Hx <- rbind(Hx, H)
+    }
+    
+    Entropy <- sum(Hx)
+
+#Then Calculate number of effective modules,
+
+    Perplexity_max.layer[i,l] <- 2^(-(Entropy))
+    
+    }
+
+    
+  }
+}
+
+plot(Perplexity_max.layer[,1],col=1,lwd=2,type="b",ylab="Perplexity",xlab="Diameter",xaxt="n",main="Perplexity for lower layers",ylim=c(0,max(Perplexity_max.layer)))
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+for(i in 2:ncol(Perplexity_max.layer)){
+  lines(Perplexity_max.layer[,i],col=i, type = "b")
+}
+legend("topleft", col = 1:ncol(Perplexity_max.layer),legend = labs, lty=1)
+
+```
+
+
+
+```{r}
+Perplexity=matrix(NA,nrow = length(net.clu),ncol=length(levels),dimnames = list(names(net.clu),levels))
+
+for(l in levels){
+  level=l
+  for(i in 1:length(net.clu)){
+    
+    modules=data.frame(table(net.clu[[i]]$cluster.ID[net.clu[[i]]$cluster.ID[,"Level_1"]==2,level]))
+
+    m <- nrow(modules)# number of modules
+    n <- sum(modules$Freq)  # number of nodes
+
+    Hx <- NULL
+    for(j in 1:m){
+      nx <- modules$Freq[j]
+      H <- (nx/n)*log2(nx/n)
+      Hx <- rbind(Hx, H)
+    }
+    
+    Entropy <- sum(Hx)
+
+#Then Calculate number of effective modules,
+
+    Perplexity[i,l] <- 2^(-(Entropy))
+  }
+}
+
+plot(Perplexity[,1],col=1,lwd=2,type="b",ylab="Perplexity",xlab="Diameter",xaxt="n",main="Perplexity", ylim=c(0,10))
+axis(side=1, at=1:length(s),labels = paste0(s,"km"))
+for(i in 2:ncol(Perplexity)){
+  lines(Perplexity[,i],col=i, type = "b")
+}
+legend("topleft", col = 1:ncol(Perplexity),legend = levels, lty=1)
+```
+
+```{r}
+level2=net.clu[["370"]]$sub.eu[net.clu[["370"]]$sub.eu[,"Level_1"]==1,"Level_2"]
+
+
+level1=net.clu[[4]]$sub.eu[net.clu[[4]]$sub.eu["Level_1"]==1,c("level","Level_1")]
+plot(level1$level, level1$Level_1)
+```
+```{r}
+level1=net.clu[[4]]$sub.eu[net.clu[[4]]$sub.eu["Level_1"]==2,c("level","Level_1")]
+plot(level1$level, level1$Level_1)
+```
+```{r}
+level1=net.clu[["clus500"]]$sub.eu[net.clu[["clus500"]]$sub.eu["Level_1"]==1,c("level","Level_1")]
+plot(level1$level, level1$Level_1)
+```
+We can conclude that level 1 is temproal structure
+```{r}
+#table(pp1$Level_1)
+level1=net.clu[["clus500"]]$sub.eu[net.clu[["clus500"]]$sub.eu$Level_1 %in% sub,c("LIDNUM","level","Level_1", "Level_2", "Level_3", "Level_4","Level_5")]
+sub=which(table(level1$Level_1)>5)
+level1=level1[level1$Level_1 %in% sub,]
+#sub
+
+plot(level1$level, level1$Level_1,pch=as.numeric(level1$Level_1), col=level1$Level_1,xlab="Time unit",ylab="Cluster ID",xaxt="n",main="Cluster ID vs layers, Level 1")
+axis(side=1, at=1:length(lab),labels = lab)
+#legend("topright", col =unique(level1$Level_1),legend = level1$Level_1, lty=1)
+```
+
+```{r}
+level2=level1[level1$Level_1==1,c("level","Level_2")]
+sub=which(table(level2$Level_2)>5)
+level2=level2[level2$Level_2 %in% sub,]
+
+plot(level2$level, level2$Level_2,pch=as.numeric(level2$Level_2), col=level2$Level_2,xlab="Time unit",ylab="Cluster ID",xaxt="n",main="Cluster ID vs layers, Level 2")
+axis(side=1, at=1:length(lab),labels = lab)
+```
+Also here no geogrpahical info
+```{r}
+level_23=level1[level1$Level_1==1,]
+level_23$Level_23=paste(level_23$Level_2,level_23$Level_3,sep="")
+sub=which(table(level_23$Level_23)>5)
+level_23=level_23[level_23$Level_23 %in% sub,]
+
+plot(level_23$level, level_23$Level_23, col=level_23$Level_23,xlab="Time unit",ylab="Cluster ID",xaxt="n",main="Cluster ID vs layers, Level 3")
+axis(side=1, at=1:length(lab),labels = lab)
+```
+
+
+```{r}
+ds=net.clu[[7]]$sub.eu
+ds$level_234=paste(net.clu[[7]]$sub.eu$Level_2,net.clu[[7]]$sub.eu$Level_3,net.clu[[7]]$sub.eu$Level_4, sep="")
+ds=ds[,c("level","level_234")]
+#level3=net.clu[[4]]$sub.eu[net.clu[[4]]$sub.eu[,"Level_1"]==1,c("level","Level_2", "Level_3")]
+plot(ds$level, ds$level_234)
+```
