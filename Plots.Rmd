@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #load(file="Probabilities.RData")
-#load(file="Plots.RData")
+load(file="Plots.RData")
 ```
 
 
@@ -23,6 +23,12 @@ for(i in ncol(p.time500):2){
 }
 ```
 
+
+Scale probabilities. does it make sense?
+```{r}
+p.non_scaled=p.time500
+
+```
 
 
 
@@ -51,6 +57,74 @@ boxplot(time.adj.frac[,2:ncol(time.adj.frac)], ylim=c(0,1000))
  
 ## Species factories  
 
+```{r Create plots}
+#par(mfrow=c(5,4))
+library(rnaturalearth)
+library(ggplot2)
+library(sf)
+library(gridExtra)
+pp=c()
+for(i in 2:ncol(time.adj.frac)){
+  time.adj.frac[,i]=as.numeric(time.adj.frac[,i])
+  #class(time.adj.frac[,i])
+  tr=as.numeric(quantile(time.adj.frac[,i], 0.95))
+  #cat("\nThreshold=",tr,"\n")
+  idx=which(time.adj.frac[,i]>tr)
+  cat("\n\nAbnormal locations= ", length(idx))
+  
+  adj.frac=time.adj.frac[idx,]
+  bb=data[which(data$LIDNUM %in% rownames(adj.frac)),]
+  bb=bb[!duplicated(bb$LIDNUM),]
+  bb=bb[,c("LIDNUM","NAME","LAT","LONG")]
+  adj.frac=merge(adj.frac,bb,by= "LIDNUM")
+  
+  world <- ne_countries(scale = "medium", returnclass = "sf")
+#Europe <- world[which(world$continent == "Europe"),]
+  pp[[i-1]]=ggplot(world) +
+    geom_sf() +
+    geom_point(data = adj.frac, mapping = aes(x = LONG, y = LAT), colour = "red",show.legend=FALSE) + 
+    coord_sf(xlim = c(-25,45), ylim = c(35,70), expand = FALSE)+
+    ggtitle(paste0(colnames(adj.frac)[i]))+
+    
+    theme_bw()+
+    theme(plot.title = element_text(size = 20, face = "bold",hjust = 0.5),
+      panel.background = element_rect(fill = "lightblue",
+                                    colour = "lightblue",
+                                    size = 0.5, linetype = "solid")
+    )
+  
+}
+```
+
+```{r Plot species factories,fig.width=20,fig.height=10}
+library(gridExtra)
+#library(cowplot)
+library(ggpubr)
+library(purrr)
+ggarrange(plotlist = pp,nrow = 3,ncol=3)
+```
+
+Another possibility is to identify as abnormally high the fractions that are considered outliers in the boxplot
+```{r Count outliers from boxplots}
+id.out=c()
+count=c()
+for(i in 2:ncol(time.adj.frac)){
+  print(paste0(colnames(adj.frac)[i]))
+  out=boxplot.stats(time.adj.frac[,i])$out
+  cat("Outliers from boxplot = ",length(out),"\n\n")
+  id.out[[i-1]]=which(time.adj.frac[,i] %in% c(out))
+  count=c(count, length(out))
+  
+}
+```
+
+```{r Histogram of number of outliers from boxplots}
+quantile(count)
+hist(count, breaks=25)
+```
+
+We can see that in many MN units we have way many more species factories than if we use the quantile way of defining abnormally high fractions.
+Would it make sense to mark as species factor that many locations?
 
 ```{r Add coordinates and Name to dataset of probabilities}
 bb=data[which(data$LIDNUM %in% time.adj.frac$LIDNUM),]
@@ -89,17 +163,22 @@ for(i in 2:(ncol(adj.frac.coord)-3)){
     
     theme_bw()+
     theme(plot.title = element_text(size = 20, face = "bold",hjust = 0.5),
+          #plot.margin = margin(0.1, 0.1, 0.1, 0.1, "cm"),
       panel.background = element_rect(fill = "lightblue",
                                     colour = "lightblue",
-                                    size = 0.5, linetype = "solid")
-    )
+                                    size = 0.5, linetype = "solid"))+
+       theme(plot.margin = margin(0.2, 0, 0, 0, "cm"))
+    
   #print(p[[i-1]])
   
 }
 ```
 
 ```{r Plots species factories and locations,fig.width=20,fig.height=10}
-ggarrange(plotlist = p,nrow = 3,ncol=3)
+#margin = theme(plot.margin = unit(c(0.2,0.2,0.2,0.2), "cm")
+
+ggarrange(plotlist = p,nrow = 2,ncol=3)
+
 ```
 
 
@@ -141,8 +220,8 @@ names(nfind.sp.fac)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
 
 ```{r Boxplot species factories total findings, fig.width=15}
 par(mfrow=c(1,2))
-boxplot(nfind.sp.fac,col="dodgerblue", main="Species factories")
-boxplot(time.sp, col="light blue", main="Total locations") 
+boxplot(nfind.sp.fac,col="dodgerblue", main="Species factories", xlab="Time", ylab="Number of findings")
+boxplot(time.sp, col="light blue", main="Total locations", xlab="Time", ylab="Number of findings") 
 mtext("Total findings", side = 1, outer = TRUE,line=-2, cex=2)
 ```
 From these two plots we can see that the the boxplots for the total number of species in all the locations are actually much wider than the ones for the species factories.  
@@ -187,8 +266,8 @@ names(sp.fac_names)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
 
 ```{r Boxplot species factories different species, fig.width=15}
 par(mfrow=c(1,2))
-boxplot(tot.sp.fac,col="dodgerblue", main="Species factories")
-boxplot(tot.sp, col="light blue", main="Total locations") 
+boxplot(tot.sp.fac,col="dodgerblue", main="Species factories", xlab="Time", ylab="Number of different species")
+boxplot(tot.sp, col="light blue", main="Total locations", xlab="Time", ylab="Number of different species") 
 mtext("Different species", side = 1, outer = TRUE,line=-2, cex=2)
 ```
 
@@ -222,13 +301,25 @@ names(frac.sp.fac)=colnames(time.adj.frac[,2:(ncol(adj.frac.coord)-3)])
 
 ```{r Boxplot species factories different species/total findings, fig.width=15}
 par(mfrow=c(1,2))
-boxplot(frac.sp.fac,col="dodgerblue", main="Species factories")
-boxplot(frac.dife, col="light blue", main="Total locations") 
+boxplot(frac.sp.fac,col="dodgerblue", main="Species factories",  xlab="Time", ylab="Different species/total findings")
+boxplot(frac.dife, col="light blue", main="Total locations",  xlab="Time", ylab="Different species/total findings") 
 mtext("Different species/total findings", side = 1, outer = TRUE,line=-2, cex=2)
 ```
 
 
 Here we see a completely different trend since the species factories tend to be in the higher fractions than the total localities and in some time unit being made only by the higher outliers of the boxplots and their values are usually in the last quantiles.
+
+```{r Summarising boxplots}
+cat("Species factories total findings")
+print(mean(nfind.sp.fac))
+
+cat("Species factories difference factories")
+print(mean(tot.sp.fac))
+
+cat("Species factories difference factories/total findings")
+print(mean(frac.sp.fac))
+```
+
 
 
 ```{r, fig.height=10, fig.width=15}
