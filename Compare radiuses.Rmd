@@ -585,7 +585,7 @@ Subset to only first cluster of level 1 and plot again
 
 
 
-```{r PErplexity only for layer with most data}
+```{r Perplexity only for layer with most data}
 Perplexity_max.layer=matrix(NA,nrow = length(net.clu),ncol=length(levels),dimnames = list(names(net.clu),levels))
 
 for(l in levels){
@@ -709,7 +709,7 @@ level2=level2[level2$Level_2 %in% sub,]
 plot(level2$level, level2$Level_2,pch=as.numeric(level2$Level_2), col=level2$Level_2,xlab="Time unit",ylab="Cluster ID",xaxt="n",main="Cluster ID vs layers, Level 2")
 axis(side=1, at=1:length(lab),labels = lab)
 ```
-Also here no geogrpahical info
+Also here no geograpahical info
 ```{r}
 level_23=level1[level1$Level_1==1,]
 level_23$Level_23=paste(level_23$Level_2,level_23$Level_3,sep="")
