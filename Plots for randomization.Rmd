@@ -30,38 +30,38 @@ medians_sp.fac
 saveRDS(medians_sp.fac, file = "medians_SpFac.rds")
 ```
 
-```{r Densities of medians for different species, fig.height=15, fig.width=15}
+```{r Densities of medians for different species, fig.height=17, fig.width=15}
 colnames(med_diff.sp)=colnames(med_frac)
-par(mfrow=c(5,4), mar=c(1,1,7,1))
+par(mfrow=c(5,4), mar=c(2,3,5,1), cex.axis=1.75)
 for (i in 1:ncol(med_diff.sp)){
   mn=colnames(med_diff.sp)[i]
   plot(density(med_diff.sp[,mn]), main = paste0(mn), xlim=c(0,100),xlab="X", ylab="Density")
   abline(v = medians_sp.fac["different.sp_med" ,mn], col="red")
   legend("topright", legend=c("Original pecies factories median"), col="red", lwd=1)
 }
-mtext("Density of medians for number of different species in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+#mtext("Density of medians for number of different species in the species factories found after randomization", side = 1, line = -3, outer = TRUE, cex=2)
 ```
 ```{r Densities of medians for total findings, fig.height=15, fig.width=15}
 
-par(mfrow=c(5,4), mar=c(1,1,7,1))
+par(mfrow=c(5,4), mar=c(2,3,5,1), cex.axis=1.75)
 for (i in 1:ncol(med_tot.sp)){
   mn=colnames(med_diff.sp)[i]
   plot(density(med_tot.sp[,mn]), main = paste0(mn),xlab="X", ylab="Density")
   abline(v = medians_sp.fac["total.find_med" ,mn], col="red")
   legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
 }
-mtext("Density of medians for total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+#mtext("Density of medians for total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
 ```
-```{r Densities of medians fordifferent species/total fidings, fig.height=15, fig.width=20}
+```{r Densities of medians fordifferent species/total fidings, fig.height=15, fig.width=15}
 
-par(mfrow=c(5,4), mar=c(1,1,7,1))
+par(mfrow=c(5,4), mar=c(2,3,5,1), cex.axis=1.75)
 for (i in 1:ncol(med_frac)){
   mn=colnames(med_frac)[i]
   plot(density(med_frac[,mn]), main = paste0(mn), xlim=c(0.5,1),xlab="X", ylab="Density")
   abline(v = medians_sp.fac["frac_med" ,mn], col="red")
   legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
 }
-mtext("Density of medians for number of different species/total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+#mtext("Density of medians for number of different species/total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
 ```
 
 For each calculate how much of the density there is before the value coming from the original species factories.
@@ -76,8 +76,8 @@ inv_ecdf <- function(f){
 ```
 
 
-```{r Cumluative distribution of total findings, fig.height=15, fig.width=20}
-par(mfrow=c(5,4), mar=c(4,1,7,1))
+```{r Cumluative distribution of total findings, fig.height=15, fig.width=15}
+par(mfrow=c(5,4), mar=c(4,2.5,7,1), cex.axis=1.75)
 ecdf_total.sp=c()
 for (i in 1:ncol(med_tot.sp)){
   mn=colnames(med_tot.sp)[i]
@@ -92,18 +92,18 @@ for (i in 1:ncol(med_tot.sp)){
   }
   cat("\nECDF of ",mn,gg,"\n\n")
 
-  plot(ecdf(med_diff.sp[,mn]),xlab = paste0("ECDF original species factories=",gg),ylab = "Distribution of x",main=paste0(mn), xlim=c(0,150))
+  plot(ecdf(med_diff.sp[,mn]),xlab = paste0("ECDF original species factories=",gg),ylab = "Distribution of x",main=paste0(mn), xlim=c(0,150), cex.main=1.75)
   abline(v = medians_sp.fac["total.find_med" ,mn], col="red")
   legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
   
   ecdf_total.sp[[i]]=cat("\nECDF of ",mn,gg,"\n\n")
   #my.ecdf <- fun.ecdf(sort(med_frac[,mn]))
 }
-mtext("Cumulative density of total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+#mtext("Cumulative density of total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
 ```
 
-```{r Cumluative distribution of different findings, fig.height=15, fig.width=20}
-par(mfrow=c(5,4), mar=c(4,1,7,1))
+```{r Cumluative distribution of different findings, fig.height=15, fig.width=15}
+par(mfrow=c(5,4), mar=c(4,2.5,7,1), cex.axis=1.75)
 for (i in 1:ncol(med_diff.sp)){
   mn=colnames(med_diff.sp)[i]
   
@@ -119,16 +119,16 @@ for (i in 1:ncol(med_diff.sp)){
   cat("\nECDF of ",mn,gg,"\n\n")
   ecdf_different.sp=cat("\nECDF of ",mn,gg,"\n\n")
   
-  plot(ecdf(med_diff.sp[,mn]),xlab =paste0("ECDF original species factories=",gg),ylab = "Distribution of x",main=paste0(mn), xlim=c(0,150))
+  plot(ecdf(med_diff.sp[,mn]),xlab =paste0("ECDF original species factories=",gg),ylab = "Distribution of x",main=paste0(mn), xlim=c(0,150), cex.main=1.75)
   abline(v = medians_sp.fac["different.sp_med" ,mn], col="red")
   legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
   
 }
-mtext("Cumulative density of different species in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+#mtext("Cumulative density of different species in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
 ```
 
-```{r Cumluative distribution of fraction, fig.height=15, fig.width=20}
-par(mfrow=c(5,4), mar=c(4,1,7,1))
+```{r Cumluative distribution of fraction, fig.height=15, fig.width=15}
+par(mfrow=c(5,4), mar=c(4,2.5,7,1), cex.axis=1.75)
 for (i in 1:ncol(med_frac)){
   mn=colnames(med_frac)[i]
   
@@ -143,12 +143,12 @@ for (i in 1:ncol(med_frac)){
   cat("\nECDF of ",mn,gg,"\n\n")
   ecd_fraction=cat("\nECDF of ",mn,gg,"\n\n")
   
-  plot(ecdf(med_frac[,mn]),xlab = paste0("ECDF original species factories=",gg),ylab = "Distribution of x", xlim=c(0,1), main=paste0(mn))
+  plot(ecdf(med_frac[,mn]),xlab = paste0("ECDF original species factories=",gg),ylab = "Distribution of x", xlim=c(0,1), main=paste0(mn), cex.main=1.75)
   abline(v = medians_sp.fac["frac_med" ,mn], col="red")
   legend("topright", legend=c("Original species factories median"), col="red", lwd=1)
   
 }
-mtext("Cumulative density of species/total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
+#mtext("Cumulative density of species/total findings in the species factories found after randomization", side = 3, line = -3, outer = TRUE, cex=2)
 ```
 
 
@@ -177,6 +177,4 @@ for(i in 1:length(sp.fac_names)){
   #grid.table(name_sp.fac[[i]])
 }
 ```
-
-
 
