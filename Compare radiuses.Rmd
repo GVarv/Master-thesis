@@ -312,7 +312,7 @@ axis(side=1, at=1:length(s),labels = paste0(s,"km"))
 #ggplot(aes(y=clus_clean))
 ```
 
-``{r Remove cluster with few knots for first 12 layers, fig.width=20}
+```{r Remove cluster with few knots for first 12 layers, fig.width=20}
 level="Level_123"
 net.info=c()
 for(i in 1:length(net.clu)){
